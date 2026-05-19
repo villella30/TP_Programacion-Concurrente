@@ -14,10 +14,7 @@ El proyecto modela un entorno donde múltiples actividades interactúan concurre
 * **Trazabilidad:** Registro atómico de eventos en un archivo log del sistema.
 
 ## 👥 Integrantes del Equipo
-* **Valentino Villella:** (Producción, Ingreso)
-* **[Nombre Integrante 2]:** (Consumo y Gestión del Pool)
-* **[Nombre Integrante 3]:** (Planificador y Sincronización)
-* **[Nombre Integrante 4]:** (Registro, Escenarios de Carga y pruebas)
-
-## 🔗 Enlace al Video
-*(Pegar acá el link de YouTube con la narración de las pruebas en funcionamiento)*.
+* **Valentino Villella:** (Estructura)
+* **[Nombre Integrante 2]:** ()
+* **[Nombre Integrante 3]:** ()
+* **[Nombre Integrante 4]:** ()
