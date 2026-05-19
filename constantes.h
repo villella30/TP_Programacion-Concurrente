@@ -1,0 +1,9 @@
+#ifndef CONSTANTES_H
+#define CONSTANTES_H
+
+const int RETARDO_INGRESO_COLA_MS = 100;
+const int RETARDO_ASIGNACION_VRAM_MS = 450;
+const int TIEMPO_MINIMO_VRAM_MS = 600;
+const int RETARDO_LIBERACION_SLOT_MS = 250;
+
+#endif
