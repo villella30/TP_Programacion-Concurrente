@@ -1,6 +1,7 @@
-// Prueba de humo — Integrante 1
-// Verifica que Logger, Job, Semaforo y contador funcionan correctamente con hilos concurrentes.
-// Este main es temporal; el main final del sistema lo implementa el Integrante 4.
+// Prueba aislada Fase 2A — Productor + MessageQueue
+// Verifica que 2 productores y 1 consumidor dummy procesan exactamente 20 jobs
+// sin deadlock ni condicion de carrera.
+// El consumidor dummy solo extrae jobs e imprime; no usa el VRAM Pool.
 
 #include <iostream>
 #include <thread>
@@ -12,49 +13,54 @@
 #include "semaforo.h"
 #include "registro.h"
 #include "contador.h"
+#include "message_queue.h"
+#include "productor.h"
 
+// Recurso compartido global — accedido via extern desde productor.cpp
 RegistroLog log_global;
 
-// Cada hilo loguea 5 eventos seguidos para verificar que no hay lineas entrelazadas
-void hilo_logger(int id_hilo) {
-    for (int i = 0; i < 5; i++) {
-        Job j;
-        j.id        = proximo_id_job++;
-        j.prioridad = (id_hilo % 2 == 0) ? PREMIUM : FREE;
-        j.evento    = EN_COLA;
-        j.ts_creado = std::chrono::system_clock::now();
-        registrarEvento(log_global, j);
+// Consumidor dummy: extrae jobs de la cola hasta completar el total esperado
+void consumidor_dummy(MessageQueue& queue, int total_jobs) {
+    int consumidos = 0;
+    while (consumidos < total_jobs) {
+        // 1. Extraer el job de mayor prioridad efectiva
+        Job job = queue.pop();
+
+        // 2. Imprimir para verificar el orden de prioridad
+        std::cout << "[Consumidor] Job " << job.id
+                  << " | " << (job.prioridad == PREMIUM ? "PREMIUM" : "FREE")
+                  << std::endl;
+
+        consumidos++;
     }
 }
 
 int main() {
     abrirLog(log_global, "sistema.log");
 
-    // Crear 3 jobs de muestra y logear CREADO
-    for (int i = 0; i < 3; i++) {
-        Job j;
-        j.id        = proximo_id_job++;
-        j.prioridad = (i % 2 == 0) ? PREMIUM : FREE;
-        j.evento    = CREADO;
-        j.ts_creado = std::chrono::system_clock::now();
-        registrarEvento(log_global, j);
+    const int N_PRODUCTORES      = 2;
+    const int JOBS_POR_PRODUCTOR = 10;
+    const int TOTAL_JOBS         = N_PRODUCTORES * JOBS_POR_PRODUCTOR;
+
+    MessageQueue queue(CAPACIDAD_COLA);
+
+    // Lanzar productores (patron de main_aging.cpp)
+    std::vector<std::thread> productores;
+    for (int i = 0; i < N_PRODUCTORES; i++) {
+        productores.emplace_back(funcion_productor, i + 1, JOBS_POR_PRODUCTOR, std::ref(queue));
     }
 
-    // Lanzar 2 hilos que loguean en paralelo — verifica atomicidad del logger
-    // (patron tomado de fuentes-clase-prod-cons/main.cpp)
-    std::vector<std::thread> hilos;
-    for (int i = 0; i < 2; i++) {
-        hilos.emplace_back(hilo_logger, i);
-    }
-    for (auto& t : hilos) t.join();
+    // Lanzar consumidor dummy
+    std::thread consumidor(consumidor_dummy, std::ref(queue), TOTAL_JOBS);
+
+    for (auto& t : productores) t.join();
+    consumidor.join();
+
+    std::cout << "\nPrueba Fase 2A completada." << std::endl;
+    std::cout << "Jobs procesados: " << TOTAL_JOBS << std::endl;
+    std::cout << "Revisar sistema.log: debe tener " << TOTAL_JOBS * 2
+              << " lineas (CREADO + EN_COLA por job)." << std::endl;
 
     cerrarLog(log_global);
-
-    std::cout << "Prueba de humo completada." << std::endl;
-    std::cout << "Revisar sistema.log: debe tener 13 lineas sin texto entrelazado." << std::endl;
-    std::cout << "  - 3 eventos CREADO" << std::endl;
-    std::cout << "  - 10 eventos EN_COLA (5 por cada hilo)" << std::endl;
-
     return 0;
 }
-
