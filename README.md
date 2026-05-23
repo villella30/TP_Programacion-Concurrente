@@ -100,7 +100,7 @@ g++ -std=c++17 -o sistema main.cpp semaforo.cpp registro.cpp message_queue.cpp p
 | Integrante | Módulos |
 |---|---|
 | Valentino Villella | `constantes.h`, `job.h`, `semaforo`, `registro`, `contador.h` |
-| [Nombre Integrante 2] | `message_queue`, `productor` |
+| Favio Alonso | `message_queue`, `productor` |
 | [Nombre Integrante 3] | `vram_pool`, `worker` |
 | [Nombre Integrante 4] | `main` |
 
