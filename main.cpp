@@ -1,65 +1,97 @@
-// Prueba aislada Fase 2A — Productor + MessageQueue
-// Verifica que 2 productores y 1 consumidor dummy procesan exactamente 20 jobs
-// sin deadlock ni condicion de carrera.
-// El consumidor dummy solo extrae jobs e imprime; no usa el VRAM Pool.
-
+#include "productor.h"
+#include "worker.h"
+#include "message_queue.h"
+#include "vram_pool.h"
+#include "registro.h"
+#include "constantes.h"
+#include "contador.h"
 #include <iostream>
 #include <thread>
 #include <vector>
 #include <chrono>
 
-#include "constantes.h"
-#include "job.h"
-#include "semaforo.h"
-#include "registro.h"
-#include "contador.h"
-#include "message_queue.h"
-#include "productor.h"
-
-// Recurso compartido global — accedido via extern desde productor.cpp
+// Log global compartido por todos los hilos
 RegistroLog log_global;
 
-// Consumidor dummy: extrae jobs de la cola hasta completar el total esperado
-void consumidor_dummy(MessageQueue& queue, int total_jobs) {
-    int consumidos = 0;
-    while (consumidos < total_jobs) {
-        // 1. Extraer el job de mayor prioridad efectiva
-        Job job = queue.pop();
 
-        // 2. Imprimir para verificar el orden de prioridad
-        std::cout << "[Consumidor] Job " << job.id
-                  << " | " << (job.prioridad == PREMIUM ? "PREMIUM" : "FREE")
-                  << std::endl;
+// Configuracion del escenario
 
-        consumidos++;
-    }
-}
+const int NUM_PRODUCTORES      = 3;  
+const int NUM_WORKERS          = 3;   
+const int JOBS_POR_PRODUCTOR   = 10;  
 
 int main() {
+    // Abrir el log antes de lanzar cualquier hilo
     abrirLog(log_global, "sistema.log");
 
-    const int N_PRODUCTORES      = 2;
-    const int JOBS_POR_PRODUCTOR = 10;
-    const int TOTAL_JOBS         = N_PRODUCTORES * JOBS_POR_PRODUCTOR;
+    int total_jobs = NUM_PRODUCTORES * JOBS_POR_PRODUCTOR;
 
+    std::cout << "  Sistema de Renderizado en la Nube" << std::endl;
+    std::cout << "Productores : " << NUM_PRODUCTORES << std::endl;
+    std::cout << "Workers     : " << NUM_WORKERS     << std::endl;
+    std::cout << "Jobs totales: " << total_jobs      << std::endl;
+    std::cout << "Buffer cap. : " << CAPACIDAD_COLA  << std::endl;
+    std::cout << "VRAM slots  : " << SLOTS_VRAM      << std::endl;
+
+    auto t_inicio = std::chrono::steady_clock::now();
+
+    // Recursos compartidos
     MessageQueue queue(CAPACIDAD_COLA);
+    VramPool     pool;
 
-    // Lanzar productores (patron de main_aging.cpp)
-    std::vector<std::thread> productores;
-    for (int i = 0; i < N_PRODUCTORES; i++) {
-        productores.emplace_back(funcion_productor, i + 1, JOBS_POR_PRODUCTOR, std::ref(queue));
+
+    // Lanzar hilos productores
+    std::vector<std::thread> hilos_prod;
+    for (int i = 1; i <= NUM_PRODUCTORES; i++) {
+        hilos_prod.emplace_back(funcion_productor, i, JOBS_POR_PRODUCTOR, std::ref(queue));
     }
 
-    // Lanzar consumidor dummy
-    std::thread consumidor(consumidor_dummy, std::ref(queue), TOTAL_JOBS);
+    
+    // Lanzar hilos workers (consumidores)
+    std::vector<std::thread> hilos_worker;
+    for (int i = 1; i <= NUM_WORKERS; i++) {
+        hilos_worker.emplace_back(funcion_worker, i, std::ref(queue), std::ref(pool), total_jobs);
+    }
 
-    for (auto& t : productores) t.join();
-    consumidor.join();
+    
+    // Esperar a que todos los productores terminen
+    for (auto& t : hilos_prod) t.join();
 
-    std::cout << "\nPrueba Fase 2A completada." << std::endl;
-    std::cout << "Jobs procesados: " << TOTAL_JOBS << std::endl;
-    std::cout << "Revisar sistema.log: debe tener " << TOTAL_JOBS * 2
-              << " lineas (CREADO + EN_COLA por job)." << std::endl;
+    std::cout << "[Main] Todos los productores finalizaron." << std::endl;
+
+    
+    // Poison pills: un job con id=-1 por cada worker para que terminen
+    for (int i = 0; i < NUM_WORKERS; i++) {
+        Job pill;
+        pill.id        = -1;
+        pill.prioridad = FREE;
+        pill.evento    = CREADO;
+        pill.ts_creado = std::chrono::system_clock::now();
+        pill.ts_encolado = pill.ts_creado;
+        queue.push(pill);
+    }
+
+    
+    // Esperar a que todos los workers terminen
+    for (auto& t : hilos_worker) t.join();
+
+    auto t_fin = std::chrono::steady_clock::now();
+    double ms  = std::chrono::duration<double, std::milli>(t_fin - t_inicio).count();
+
+    
+    // final
+    
+    
+    std::cout << "Todos los workers finalizaron."    << std::endl;
+    std::cout << "Jobs procesados exitosamente: ";
+    {
+        std::lock_guard<std::mutex> lk(mtx_finalizados);
+        std::cout << jobs_finalizados;
+    }
+    std::cout << " / " << total_jobs << std::endl;
+    std::cout << "Tiempo total: " << ms << " ms" << std::endl;
+    std::cout << "Log guardado en: sistema.log" << std::endl;
+    
 
     cerrarLog(log_global);
     return 0;
