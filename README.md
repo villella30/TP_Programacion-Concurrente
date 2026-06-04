@@ -6,37 +6,10 @@ Sistema multihilo en C++17 que modela una granja de renderizado cloud. Múltiple
 
 ---
 
-## Arquitectura
-
-```
-[Productores] --(100ms/job)--> [MessageQueue] --(pop por prioridad)--> [VramPool, max 5 slots] --> FINALIZADO
-                                 semaforos                               mutex asignacion (450ms)
-                                 hay_espacio                             mutex liberacion  (250ms)
-                                 hay_datos                               min 600ms en VRAM
-                                 + aging anti-starvation
-```
-
 Cada evento del ciclo de vida de un job se registra en `sistema.log`:
 ```
 [HH:MM:SS] - <id> - <PREMIUM|FREE> - <CREADO|EN_COLA|ASIGNADO_VRAM|FINALIZADO>
 ```
-
----
-
-## Módulos
-
-| Archivo | Responsable | Descripción |
-|---|---|---|
-| `constantes.h` | Integrante 1 | Todas las constantes del sistema |
-| `job.h` | Integrante 1 | Struct `Job` con timestamps y enum `Prioridad` |
-| `semaforo.h/cpp` | Integrante 1 | Semáforo manual de la cátedra (`init`, `wait`, `signal`) |
-| `registro.h/cpp` | Integrante 1 | Logger atómico a `sistema.log` |
-| `contador.h` | Integrante 1 | ID atómico global y contador de jobs finalizados |
-| `message_queue.h/cpp` | Integrante 2 | Cola con semáforos, prioridad y aging anti-starvation |
-| `productor.h/cpp` | Integrante 2 | Hilo productor: genera N jobs con prioridad aleatoria 50/50 |
-| `vram_pool.h/cpp` | Integrante 3 | Pool de 5 slots VRAM con exclusión mutua y delays |
-| `worker.h/cpp` | Integrante 3 | Hilo worker: toma jobs, procesa mínimo 600ms, finaliza |
-| `main.cpp` | Integrante 4 | Lanza configuraciones A/B/C y los 4 escenarios de prueba |
 
 ---
 
@@ -62,17 +35,7 @@ g++ -std=c++17 -o sistema main.cpp semaforo.cpp registro.cpp message_queue.cpp p
 
 ---
 
-## Configuraciones de carga
-
-| Config | Productores | Workers |
-|---|---|---|
-| A | 1 | 2 |
-| B | 3 | 1 |
-| C | 3 | 3 |
-
----
-
-## Escenarios de prueba obligatorios
+## Escenarios de prueba
 
 | Prueba | Descripción | Criterio de éxito |
 |---|---|---|
@@ -83,27 +46,11 @@ g++ -std=c++17 -o sistema main.cpp semaforo.cpp registro.cpp message_queue.cpp p
 
 ---
 
-## Primitivas de sincronización utilizadas
-
-- `std::thread` — hilos productores y workers
-- `std::mutex` — exclusión mutua en cola, pool, logger y contador
-- `std::condition_variable` — implementación del semáforo manual
-- `std::atomic<int>` — ID único global de jobs
-- `Semaforo` (manual de la cátedra) — control de flujo en MessageQueue y VramPool
-
-> No se utilizan `std::atomic` para el VramPool ni librerías externas de testing, conforme al enunciado.
-
----
-
 ## Integrantes
 
 | Integrante | Módulos |
 |---|---|
 | Valentino Villella | `constantes.h`, `job.h`, `semaforo`, `registro`, `contador.h` |
 | Favio Alonso | `message_queue`, `productor` |
-| [Nombre Integrante 3] | `vram_pool`, `worker` |
-| Herrera Valentina | `main` |
-
----
-
-**Entrega:** 06/06/2026 — **Defensa:** 08/06/2026
+| Lucas Castellví | `vram_pool`, `worker` |
+| Valentina Herrera | `main`, `escenarios de prueba` |
